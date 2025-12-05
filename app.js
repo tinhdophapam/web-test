@@ -91,6 +91,7 @@ class AudioPlayer {
         this.totalListenTimeSeconds = parseInt(localStorage.getItem('totalListenTime')) || 0;
         this.sessionStartTime = null;
         this.usingBackupUrl = false; // Track if currently using backup URL
+        this.audioUnlocked = false; // Track if audio context is unlocked for iOS
 
         // Initialize
         this.init();
@@ -105,6 +106,39 @@ class AudioPlayer {
         this.initBuddhaText();
         this.initializeLibraryView();
         this.initializeDefaultView();
+        this.setupIOSAudioUnlock();
+    }
+
+    // ===== iOS Audio Unlock =====
+    setupIOSAudioUnlock() {
+        // iOS requires user interaction to unlock audio
+        const unlockAudio = () => {
+            if (this.audioUnlocked) return;
+            
+            // Create a silent audio buffer and play it
+            const silentAudio = new Audio();
+            silentAudio.src = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAADhAC7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7//////////////////////////////////////////////////////////////////8AAAAATGF2YzU4LjEzAAAAAAAAAAAAAAAAJAAAAAAAAAAAA4T/jjOYAAAAAAAAAAAAAAAAAAAAAP/7kGQAD/AAAGkAAAAIAAANIAAAAQAAAaQAAAAgAAA0gAAABExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7kGQAD/AAAGkAAAAIAAANIAAAAQAAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVQ==';
+            silentAudio.volume = 0.01;
+            
+            const playPromise = silentAudio.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    this.audioUnlocked = true;
+                    console.log('iOS audio unlocked');
+                    // Remove event listeners after unlock
+                    document.removeEventListener('touchstart', unlockAudio);
+                    document.removeEventListener('touchend', unlockAudio);
+                    document.removeEventListener('click', unlockAudio);
+                }).catch(err => {
+                    console.log('Audio unlock failed:', err);
+                });
+            }
+        };
+
+        // Listen for first user interaction
+        document.addEventListener('touchstart', unlockAudio, { once: true });
+        document.addEventListener('touchend', unlockAudio, { once: true });
+        document.addEventListener('click', unlockAudio, { once: true });
     }
 
     // ===== Initialize Default View Based on Screen Size =====
@@ -712,8 +746,53 @@ class AudioPlayer {
         this.updateStats();
     }
 
+    // ===== Resolve GitHub Release URL for iOS =====
+    async resolveGitHubUrl(url) {
+        // Check if it's a GitHub release URL
+        if (!url.includes('github.com') || !url.includes('/releases/download/')) {
+            return url;
+        }
+
+        try {
+            // For iOS, we need to get the direct download URL
+            // GitHub redirects to a CDN URL which works better on iOS
+            const response = await fetch(url, {
+                method: 'HEAD',
+                redirect: 'follow'
+            });
+            
+            // Return the final URL after redirects
+            return response.url;
+        } catch (error) {
+            console.warn('Failed to resolve GitHub URL, using original:', error);
+            return url;
+        }
+    }
+
+    // ===== Normalize URL for iOS compatibility =====
+    normalizeAudioUrl(url) {
+        // iOS Safari has issues with some URL encodings
+        // Ensure the URL is properly encoded
+        try {
+            // If URL is already encoded, decode it first
+            let decodedUrl = decodeURI(url);
+            // Then encode it properly
+            const urlParts = decodedUrl.split('/');
+            const encodedParts = urlParts.map((part, index) => {
+                // Don't encode the protocol part (http: or https:)
+                if (index < 3) return part;
+                return encodeURIComponent(part);
+            });
+            return encodedParts.join('/');
+        } catch (e) {
+            // If encoding fails, return original URL
+            console.warn('URL encoding failed, using original:', e);
+            return url;
+        }
+    }
+
     // ===== Play Track =====
-    playTrack(index) {
+    async playTrack(index) {
         if (index < 0 || index >= this.flatPlaylist.length) return;
 
         this.currentIndex = index;
@@ -722,13 +801,52 @@ class AudioPlayer {
         // Reset backup URL flag when playing a new track
         this.usingBackupUrl = false;
 
-        this.audio.src = track.url;
-        this.trackTitle.textContent = track.title;
-        this.trackFolder.textContent = `${track.folder} • ${track.subfolder}`;
+        try {
+            // Resolve GitHub URL if needed (for iOS compatibility)
+            let audioUrl = track.url;
+            
+            // Check if it's a GitHub release URL
+            if (audioUrl.includes('github.com') && audioUrl.includes('/releases/download/')) {
+                console.log('Resolving GitHub URL for iOS...');
+                audioUrl = await this.resolveGitHubUrl(audioUrl);
+                console.log('Resolved URL:', audioUrl);
+            } else {
+                // Normalize URL for other sources
+                audioUrl = this.normalizeAudioUrl(audioUrl);
+            }
 
-        this.audio.play().catch(error => {
-            this.showError('Không thể phát audio: ' + error.message);
-        });
+            console.log('Playing URL:', audioUrl);
+
+            // For iOS Safari compatibility: load audio first, then play
+            this.audio.src = audioUrl;
+            this.audio.load(); // Explicitly load the audio
+            
+            this.trackTitle.textContent = track.title;
+            this.trackFolder.textContent = `${track.folder} • ${track.subfolder}`;
+
+            // Use a promise chain for better iOS compatibility
+            const playPromise = this.audio.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    // Audio is playing successfully
+                    console.log('Audio playing successfully');
+                }).catch(error => {
+                    console.error('Play error:', error);
+                    // For iOS, show a more helpful error message
+                    if (error.name === 'NotAllowedError') {
+                        this.showError('Vui lòng nhấn nút phát để bắt đầu');
+                    } else if (error.name === 'NotSupportedError') {
+                        this.showError('Định dạng audio không được hỗ trợ trên thiết bị này');
+                    } else {
+                        this.showError('Không thể phát audio: ' + error.message);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error in playTrack:', error);
+            this.showError('Lỗi khi tải audio: ' + error.message);
+        }
 
         this.updateActiveTrack();
         this.scrollToActiveTrack();
@@ -775,7 +893,17 @@ class AudioPlayer {
             if (this.currentIndex === -1 && this.flatPlaylist.length > 0) {
                 this.playTrack(0);
             } else {
-                this.audio.play();
+                const playPromise = this.audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(error => {
+                        console.error('Play error:', error);
+                        if (error.name === 'NotAllowedError') {
+                            this.showError('Vui lòng nhấn nút phát để bắt đầu');
+                        } else {
+                            this.showError('Không thể phát audio: ' + error.message);
+                        }
+                    });
+                }
             }
         } else {
             this.audio.pause();
@@ -1953,6 +2081,20 @@ class AudioPlayer {
             }
         });
 
+        // iOS Safari needs canplaythrough event for reliable playback
+        this.audio.addEventListener('canplaythrough', () => {
+            console.log('Audio can play through');
+        }, { once: false });
+
+        // Handle waiting/stalled events for better iOS experience
+        this.audio.addEventListener('waiting', () => {
+            console.log('Audio is waiting for data...');
+        });
+
+        this.audio.addEventListener('stalled', () => {
+            console.log('Audio download has stalled');
+        });
+
         // Progress bar click
         this.progressBar.addEventListener('click', (e) => this.seek(e));
         this.progressBar.addEventListener('mousedown', () => {
@@ -2178,8 +2320,10 @@ class AudioPlayer {
             }
         });
 
-        // Error handling
+        // Error handling with iOS-specific fixes
         this.audio.addEventListener('error', async (e) => {
+            console.error('Audio error:', this.audio.error);
+            
             // Try backup URL if available and not already using it
             if (!this.usingBackupUrl && this.currentIndex >= 0) {
                 const track = this.flatPlaylist[this.currentIndex];
@@ -2198,8 +2342,13 @@ class AudioPlayer {
                         }
 
                         this.audio.src = backupSrc;
+                        this.audio.load(); // Explicitly load for iOS
                         this.audio.currentTime = currentTime;
-                        await this.audio.play();
+                        
+                        const playPromise = this.audio.play();
+                        if (playPromise !== undefined) {
+                            await playPromise;
+                        }
 
                         // Clear the loading message on success
                         this.errorMessage.style.display = 'none';
@@ -2213,22 +2362,27 @@ class AudioPlayer {
                 }
             }
 
-            // Show error message
+            // Show error message with iOS-specific hints
             let errorMsg = 'Lỗi phát audio';
-            switch(this.audio.error.code) {
-                case 1:
-                    errorMsg = 'Tải audio bị hủy';
-                    break;
-                case 2:
-                    errorMsg = 'Lỗi mạng khi tải audio';
-                    break;
-                case 3:
-                    errorMsg = 'Lỗi giải mã audio';
-                    break;
-                case 4:
-                    errorMsg = 'Định dạng audio không được hỗ trợ hoặc CORS bị chặn';
-                    break;
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            
+            if (this.audio.error) {
+                switch(this.audio.error.code) {
+                    case 1:
+                        errorMsg = 'Tải audio bị hủy';
+                        break;
+                    case 2:
+                        errorMsg = isIOS ? 'Lỗi mạng - Vui lòng kiểm tra kết nối' : 'Lỗi mạng khi tải audio';
+                        break;
+                    case 3:
+                        errorMsg = 'Lỗi giải mã audio';
+                        break;
+                    case 4:
+                        errorMsg = isIOS ? 'Link audio không khả dụng trên iOS' : 'Định dạng audio không được hỗ trợ hoặc CORS bị chặn';
+                        break;
+                }
             }
+            
             this.showError(errorMsg);
             this.usingBackupUrl = false;
         });
