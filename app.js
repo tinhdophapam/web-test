@@ -753,26 +753,30 @@ class AudioPlayer {
             return url;
         }
 
-        try {
-            // iOS Safari has strict CORS and audio loading requirements
-            // We need to use GET method with mode: 'cors' and proper credentials
-            // This will follow redirects and give us the final CDN URL
+        // Only resolve on iOS, other platforms work fine with direct URL
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        if (!isIOS) {
+            console.log('Not iOS, using original GitHub URL');
+            return url;
+        }
 
-            // First, try to fetch with proper CORS settings
+        try {
+            console.log('iOS detected, resolving GitHub URL...');
+            // For iOS Safari: Get the CDN redirect URL
+            // Use Range header to minimize data transfer
             const response = await fetch(url, {
                 method: 'GET',
                 mode: 'cors',
                 credentials: 'omit',
                 redirect: 'follow',
                 headers: {
-                    'Range': 'bytes=0-1' // Request only first 2 bytes to minimize data transfer
+                    'Range': 'bytes=0-1'
                 }
             });
 
             if (response.ok) {
-                // Get the final URL after redirects (this is the CDN URL)
                 const finalUrl = response.url;
-                console.log('Resolved GitHub URL to CDN:', finalUrl);
+                console.log('Resolved to CDN URL:', finalUrl);
                 return finalUrl;
             } else {
                 console.warn('GitHub URL fetch failed, using original URL');
@@ -780,7 +784,6 @@ class AudioPlayer {
             }
         } catch (error) {
             console.warn('Failed to resolve GitHub URL, using original:', error);
-            // Fallback: return original URL
             return url;
         }
     }
@@ -821,11 +824,9 @@ class AudioPlayer {
             // Resolve GitHub URL if needed (for iOS compatibility)
             let audioUrl = track.url;
 
-            // Check if it's a GitHub release URL
+            // Check if it's a GitHub release URL (resolveGitHubUrl will check iOS internally)
             if (audioUrl.includes('github.com') && audioUrl.includes('/releases/download/')) {
-                console.log('Detected GitHub release URL, resolving for iOS...');
                 audioUrl = await this.resolveGitHubUrl(audioUrl);
-                console.log('Resolved to CDN URL:', audioUrl);
             } else {
                 // Normalize URL for other sources
                 audioUrl = this.normalizeAudioUrl(audioUrl);
@@ -837,52 +838,16 @@ class AudioPlayer {
             this.trackTitle.textContent = track.title;
             this.trackFolder.textContent = `${track.folder} • ${track.subfolder}`;
 
-            // iOS Safari specific handling
+            // Detect iOS
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
+            // Set audio source
+            this.audio.src = audioUrl;
+            this.audio.load();
+
+            // For iOS: wait a bit before playing to ensure audio is ready
             if (isIOS) {
-                // For iOS: Stop current audio first, then set new source
-                this.audio.pause();
-                this.audio.currentTime = 0;
-
-                // Remove old source
-                this.audio.removeAttribute('src');
-                this.audio.load();
-
-                // Set new source with a small delay for iOS
-                await new Promise(resolve => setTimeout(resolve, 50));
-                this.audio.src = audioUrl;
-
-                // Explicitly load
-                this.audio.load();
-
-                // Wait for loadedmetadata before playing
-                await new Promise((resolve, reject) => {
-                    const loadedHandler = () => {
-                        this.audio.removeEventListener('loadedmetadata', loadedHandler);
-                        this.audio.removeEventListener('error', errorHandler);
-                        resolve();
-                    };
-                    const errorHandler = (e) => {
-                        this.audio.removeEventListener('loadedmetadata', loadedHandler);
-                        this.audio.removeEventListener('error', errorHandler);
-                        reject(e);
-                    };
-
-                    this.audio.addEventListener('loadedmetadata', loadedHandler, { once: true });
-                    this.audio.addEventListener('error', errorHandler, { once: true });
-
-                    // Timeout after 10 seconds
-                    setTimeout(() => {
-                        this.audio.removeEventListener('loadedmetadata', loadedHandler);
-                        this.audio.removeEventListener('error', errorHandler);
-                        reject(new Error('Timeout loading audio'));
-                    }, 10000);
-                });
-            } else {
-                // For other browsers: standard approach
-                this.audio.src = audioUrl;
-                this.audio.load();
+                await new Promise(resolve => setTimeout(resolve, 100));
             }
 
             // Try to play
@@ -892,16 +857,14 @@ class AudioPlayer {
                 playPromise.then(() => {
                     // Audio is playing successfully
                     console.log('Audio playing successfully');
-                    this.hideError(); // Hide any previous errors
+                    this.hideError();
                 }).catch(error => {
                     console.error('Play error:', error);
-                    // For iOS, show a more helpful error message
+                    // Show helpful error messages
                     if (error.name === 'NotAllowedError') {
                         this.showError('Vui lòng nhấn nút phát để bắt đầu');
                     } else if (error.name === 'NotSupportedError') {
                         this.showError('Định dạng audio không được hỗ trợ trên thiết bị này');
-                    } else if (error.message.includes('Timeout')) {
-                        this.showError('Không thể tải audio. Vui lòng thử lại hoặc kiểm tra kết nối mạng');
                     } else {
                         this.showError('Không thể phát audio: ' + error.message);
                     }
