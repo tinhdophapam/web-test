@@ -179,6 +179,9 @@
                 <button class="filter-tab" data-filter="favorites">
                     <i class="fas fa-list"></i> Playlist
                 </button>
+                <button class="filter-tab" data-filter="bookmarks">
+                    <i class="fas fa-bookmark"></i> Ghi chú
+                </button>
                 <button class="filter-tab" data-filter="recent">
                     <i class="fas fa-history"></i> Lịch sử
                 </button>
@@ -223,6 +226,9 @@
                         </div>
                         <button class="favorite-btn" id="favoriteBtn" title="Thêm vào playlist">
                             <i class="far fa-star"></i>
+                        </button>
+                        <button class="bookmark-btn" id="bookmarkBtn" title="Đánh dấu (Ghi chú)">
+                            <i class="far fa-bookmark"></i>
                         </button>
                     </div>
                     <div class="track-info">
@@ -287,6 +293,25 @@
                             <button data-speed="1.25">1.25x</button>
                             <button data-speed="1.5">1.5x</button>
                             <button data-speed="2">2.0x</button>
+                        </div>
+                    </div>
+
+                    <div class="sleep-timer-control">
+                        <button class="control-btn secondary" id="sleepTimerBtn" title="Hẹn giờ tắt">
+                            <i class="fas fa-moon"></i>
+                            <span class="timer-countdown" id="timerCountdown" style="display: none;"></span>
+                        </button>
+                        <div class="timer-menu" id="timerMenu">
+                            <div class="timer-header">Hẹn giờ tắt</div>
+                            <button data-time="0" class="active">Tắt</button>
+                            <button data-time="15">15 phút</button>
+                            <button data-time="30">30 phút</button>
+                            <button data-time="45">45 phút</button>
+                            <button data-time="60">60 phút</button>
+                            <div class="custom-timer">
+                                <input type="number" id="customTimerInput" placeholder="Phút" min="1" max="120">
+                                <button id="setCustomTimerBtn">Đặt</button>
+                            </div>
                         </div>
                     </div>
 
@@ -357,6 +382,19 @@
                 <div class="library-content" id="historyContent">
                     <div class="loading">
                         <p>Chưa có lịch sử nghe</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bookmarks View -->
+            <div class="content-view" id="bookmarksView">
+                <div class="library-header">
+                    <h2><i class="fas fa-bookmark"></i> Ghi chú</h2>
+                    <p class="library-subtitle">Các điểm đã lưu</p>
+                </div>
+                <div class="library-content" id="bookmarksContent">
+                    <div class="loading">
+                        <p>Chưa có ghi chú nào</p>
                     </div>
                 </div>
             </div>
@@ -449,6 +487,10 @@
             <button class="nav-item" data-nav="library">
                 <i class="fas fa-book"></i>
                 <span>Thư viện</span>
+            </button>
+            <button class="nav-item" data-nav="bookmarks">
+                <i class="fas fa-bookmark"></i>
+                <span>Ghi chú</span>
             </button>
             <button class="nav-item" data-nav="history">
                 <i class="fas fa-history"></i>
