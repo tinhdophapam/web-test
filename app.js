@@ -1140,7 +1140,6 @@ class AudioPlayer {
     }
 
     // ===== Update Active Track Highlight =====
-    // ===== Update Active Track Highlight =====
     updateActiveTrack() {
         // Remove active class from all potential items
         document.querySelectorAll('.track-card.active, .custom-playlist-item.active, .history-card.active, .queue-item.active, .queue-item.playing').forEach(el => {
