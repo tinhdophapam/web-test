@@ -1403,6 +1403,7 @@ body {
     font-size: 1.1rem;
     position: relative;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .control-btn::before {
