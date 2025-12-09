@@ -1414,15 +1414,20 @@ class AudioPlayer {
                 return new URL(path, window.location.href).href;
             };
 
-            // Enhanced artwork with multiple sizes for better quality on all devices
-            // Includes high-res options for modern displays (up to 1024x1024)
+            // Enhanced artwork with multiple sizes optimized for all platforms
+            // - iOS: Prefers 512x512 or 1024x1024 for large lock screen display
+            // - Android: Prefers 512x512 for notification player (optimal quality/size)
+            // - Android also uses 192x192 for collapsed notification (Material Design spec)
+            // - Smaller sizes for older devices and bandwidth optimization
             const artwork = [
                 { src: getAbsoluteUrl('Title Logo.webp'), sizes: '1024x1024', type: 'image/webp' },
-                { src: getAbsoluteUrl('Title Logo.webp'), sizes: '512x512', type: 'image/webp' },
+                { src: getAbsoluteUrl('Title Logo.webp'), sizes: '512x512', type: 'image/webp' },   // ← Primary for both iOS & Android
                 { src: getAbsoluteUrl('Title Logo.webp'), sizes: '384x384', type: 'image/webp' },
                 { src: getAbsoluteUrl('Title Logo.webp'), sizes: '256x256', type: 'image/webp' },
+                { src: getAbsoluteUrl('Title Logo.webp'), sizes: '192x192', type: 'image/webp' },   // ← Android Material Design
                 { src: getAbsoluteUrl('Title Logo.webp'), sizes: '128x128', type: 'image/webp' },
-                { src: getAbsoluteUrl('Title Logo.webp'), sizes: '96x96', type: 'image/webp' }
+                { src: getAbsoluteUrl('Title Logo.webp'), sizes: '96x96', type: 'image/webp' },
+                { src: getAbsoluteUrl('Title Logo.webp'), sizes: '72x72', type: 'image/webp' }      // ← Low-end devices
             ];
 
             // Set rich metadata for lock screen display
