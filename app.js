@@ -1100,8 +1100,6 @@ class AudioPlayer {
     playTrack(index) {
         if (index < 0 || index >= this.flatPlaylist.length) return;
 
-        this.vibrate(15); // Haptic feedback for track selection
-
         // Revoke previous blob URL to prevent memory leak
         if (this.currentBlobUrl) {
             URL.revokeObjectURL(this.currentBlobUrl);
@@ -1204,7 +1202,6 @@ class AudioPlayer {
 
     // ===== Play/Pause Toggle =====
     togglePlay() {
-        this.vibrate(10); // Haptic feedback
         if (this.audio.paused) {
             if (this.currentIndex === -1 && this.flatPlaylist.length > 0) {
                 this.playTrack(0);
@@ -1219,7 +1216,6 @@ class AudioPlayer {
     // ===== Previous Track =====
     prevTrack() {
         if (this.currentIndex > 0) {
-            this.vibrate(10); // Haptic feedback
             this.playTrack(this.currentIndex - 1);
         }
     }
@@ -1227,7 +1223,6 @@ class AudioPlayer {
     // ===== Next Track =====
     nextTrack() {
         if (this.currentIndex < this.flatPlaylist.length - 1) {
-            this.vibrate(10); // Haptic feedback
             this.playTrack(this.currentIndex + 1);
         }
     }
@@ -1246,13 +1241,6 @@ class AudioPlayer {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
-    }
-
-    // ===== Haptic Feedback =====
-    vibrate(pattern = 10) {
-        if ('vibrate' in navigator) {
-            navigator.vibrate(pattern);
-        }
     }
 
     // ===== Update Progress =====
@@ -3000,8 +2988,6 @@ class AudioPlayer {
     // ===== Favorites =====
     toggleFavorite() {
         if (this.currentIndex === -1) return;
-
-        this.vibrate([10, 20, 10]); // Double-tap haptic feedback
 
         const track = this.flatPlaylist[this.currentIndex];
         const index = this.favorites.findIndex(f => f.url === track.url);
