@@ -306,6 +306,11 @@ class AudioPlayer {
 
             container.appendChild(bookmarkCard);
         });
+
+        // Update active track highlighting (only if using main playlist container)
+        if (container === this.playlist) {
+            this.updateActiveTrack();
+        }
     }
 
     updateBookmarkButton() {
@@ -682,6 +687,9 @@ class AudioPlayer {
 
             this.playlist.appendChild(folderCard);
         });
+
+        // Update active folder highlighting
+        this.updateActiveTrack();
     }
 
     // ===== Render Subfolders =====
@@ -764,6 +772,9 @@ class AudioPlayer {
                 this.playlist.appendChild(subfolderCard);
             });
         }
+
+        // Update active subfolder highlighting
+        this.updateActiveTrack();
     }
 
     // ===== Render Lectures =====
@@ -840,7 +851,16 @@ class AudioPlayer {
 
                 this.playlist.appendChild(trackCard);
             });
+
+            // Auto scroll to active track if in this folder
+            setTimeout(() => {
+                const activeCard = this.playlist.querySelector('.track-card.active');
+                if (activeCard) this.scrollToActiveTrack();
+            }, 100);
         }
+
+        // Update active track highlighting
+        this.updateActiveTrack();
     }
 
     // ===== Render Favorites (Playlist) =====
@@ -954,6 +974,9 @@ class AudioPlayer {
         });
 
         this.playlist.appendChild(customPlaylistCard);
+
+        // Update active track highlighting
+        this.updateActiveTrack();
     }
 
     // ===== Render Recents (History) =====
@@ -1015,6 +1038,9 @@ class AudioPlayer {
 
             this.playlist.appendChild(historyCard);
         });
+
+        // Update active track highlighting
+        this.updateActiveTrack();
     }
 
     // ===== Navigation Methods =====
@@ -1149,14 +1175,23 @@ class AudioPlayer {
     // ===== Update Active Track Highlight =====
     updateActiveTrack() {
         // Remove active class from all potential items
-        document.querySelectorAll('.track-card.active, .custom-playlist-item.active, .history-card.active, .queue-item.active, .queue-item.playing').forEach(el => {
+        document.querySelectorAll('.track-card.active, .custom-playlist-item.active, .history-card.active, .queue-item.active, .queue-item.playing, .folder-card.active-folder').forEach(el => {
             el.classList.remove('active');
             el.classList.remove('playing');
+            el.classList.remove('active-folder');
 
             // Reset icons
-            const icon = el.querySelector('.track-card-icon i, .custom-playlist-item-icon i, .history-card-icon i');
+            const icon = el.querySelector('.track-card-icon i, .custom-playlist-item-icon i, .history-card-icon i, .folder-card-icon i');
             if (icon) {
                 if (el.classList.contains('history-card')) icon.className = 'fas fa-history';
+                else if (el.classList.contains('folder-card')) {
+                    // Reset folder icons based on context
+                    if (this.currentView === 'folders') {
+                        icon.className = 'fas fa-folder-open';
+                    } else {
+                        icon.className = 'fas fa-folder';
+                    }
+                }
                 else icon.className = 'fas fa-music';
             }
 
@@ -1170,6 +1205,10 @@ class AudioPlayer {
         if (this.currentIndex === -1) {
             return;
         }
+
+        // Get current track info
+        const currentTrack = this.flatPlaylist[this.currentIndex];
+        if (!currentTrack) return;
 
         // Add active class to matching items
         const activeElements = document.querySelectorAll(`[data-index="${this.currentIndex}"]`);
@@ -1186,6 +1225,84 @@ class AudioPlayer {
                 el.insertAdjacentHTML('beforeend', '<i class="fas fa-volume-up"></i>');
             }
         });
+
+        // Mark active folder and subfolder
+        this.markActiveFolders(currentTrack);
+    }
+
+    // ===== Mark Active Folders =====
+    markActiveFolders(currentTrack) {
+        if (!currentTrack) return;
+
+        // Mark active folder in folders view (sidebar)
+        if (this.currentView === 'folders') {
+            const folderCards = document.querySelectorAll('#playlist .folder-card');
+            folderCards.forEach((card, index) => {
+                const folderData = this.lectures[index];
+                if (folderData && folderData.folder === currentTrack.folder) {
+                    card.classList.add('active-folder');
+                    const icon = card.querySelector('.folder-card-icon i');
+                    if (icon) icon.className = 'fas fa-volume-up';
+                }
+            });
+        }
+
+        // Mark active subfolder in subfolders view (sidebar)
+        if (this.currentView === 'subfolders' && this.currentFolderIndex >= 0) {
+            const folder = this.lectures[this.currentFolderIndex];
+            if (folder && folder.subfolders) {
+                const subfolderCards = document.querySelectorAll('#playlist .folder-card');
+                // Skip back button and folder title, start from index 0 for subfolders
+                let subfolderIndex = 0;
+                subfolderCards.forEach(card => {
+                    // Skip back button and folder title elements
+                    if (card.classList.contains('folder-card') && !card.classList.contains('back-button')) {
+                        const subfolderData = folder.subfolders[subfolderIndex];
+                        if (subfolderData && subfolderData.name === currentTrack.subfolder) {
+                            card.classList.add('active-folder');
+                            const icon = card.querySelector('.folder-card-icon i');
+                            if (icon) icon.className = 'fas fa-volume-up';
+                        }
+                        subfolderIndex++;
+                    }
+                });
+            }
+        }
+
+        // Mark active folder in library view (mobile)
+        if (this.libraryView === 'folders') {
+            const libraryFolderCards = document.querySelectorAll('#libraryContent .folder-card');
+            libraryFolderCards.forEach((card, index) => {
+                const folderData = this.lectures[index];
+                if (folderData && folderData.folder === currentTrack.folder) {
+                    card.classList.add('active-folder');
+                    const icon = card.querySelector('.folder-card-icon i');
+                    if (icon) icon.className = 'fas fa-volume-up';
+                }
+            });
+        }
+
+        // Mark active subfolder in library subfolders view (mobile)
+        if (this.libraryView === 'subfolders' && this.libraryFolderIndex >= 0) {
+            const folder = this.lectures[this.libraryFolderIndex];
+            if (folder && folder.subfolders) {
+                const librarySubfolderCards = document.querySelectorAll('#libraryContent .folder-card');
+                // Skip back button and folder title, start from index 0 for subfolders
+                let subfolderIndex = 0;
+                librarySubfolderCards.forEach(card => {
+                    // Skip back button and folder title elements
+                    if (card.classList.contains('folder-card') && !card.classList.contains('back-button')) {
+                        const subfolderData = folder.subfolders[subfolderIndex];
+                        if (subfolderData && subfolderData.name === currentTrack.subfolder) {
+                            card.classList.add('active-folder');
+                            const icon = card.querySelector('.folder-card-icon i');
+                            if (icon) icon.className = 'fas fa-volume-up';
+                        }
+                        subfolderIndex++;
+                    }
+                });
+            }
+        }
     }
 
     // ===== Scroll To Active Track =====
@@ -1854,6 +1971,9 @@ class AudioPlayer {
 
             container.appendChild(folderCard);
         });
+
+        // Update active folder highlighting for library view
+        this.updateActiveTrack();
     }
 
     // ===== Render Library Subfolders =====
@@ -1929,6 +2049,9 @@ class AudioPlayer {
                 container.appendChild(subfolderCard);
             });
         }
+
+        // Update active subfolder highlighting for library view
+        this.updateActiveTrack();
     }
 
     // ===== Render Library Lectures =====
@@ -2005,6 +2128,9 @@ class AudioPlayer {
                 if (activeCard) this.scrollToActiveTrack();
             }, 100);
         }
+
+        // Update active track highlighting for library view
+        this.updateActiveTrack();
     }
 
     // ===== Library Navigation Methods =====
@@ -2910,6 +3036,9 @@ class AudioPlayer {
                 if (libraryNavItem) {
                     libraryNavItem.classList.add('active');
                 }
+
+                // Render library view to ensure proper highlighting
+                this.renderLibraryView();
             }
 
             // Show mini player if track is playing
