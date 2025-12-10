@@ -108,6 +108,7 @@ class AudioPlayer {
         this.recentlyPlayed = JSON.parse(localStorage.getItem('recentlyPlayed')) || [];
         this.queue = [];
         this.currentFilter = 'all';
+        this.currentBlobUrl = null; // Track blob URLs for cleanup
 
         // Bookmark Elements
         this.bookmarkBtn = document.getElementById('bookmarkBtn');
@@ -130,7 +131,6 @@ class AudioPlayer {
         this.updateStats();
         this.initBuddhaText();
         this.initializeLibraryView();
-        this.initializeDefaultView();
         this.initializeDefaultView();
         this.initSleepTimer();
         this.initBookmarks();
@@ -623,6 +623,7 @@ class AudioPlayer {
         if (this.currentFilter === 'favorites') {
             this.renderFavorites(searchTerm);
             return;
+        } else if (this.currentFilter === 'recent') {
             this.renderRecents(searchTerm);
             return;
         } else if (this.currentFilter === 'bookmarks') {
@@ -1099,6 +1100,12 @@ class AudioPlayer {
     playTrack(index) {
         if (index < 0 || index >= this.flatPlaylist.length) return;
 
+        // Revoke previous blob URL to prevent memory leak
+        if (this.currentBlobUrl) {
+            URL.revokeObjectURL(this.currentBlobUrl);
+            this.currentBlobUrl = null;
+        }
+
         this.currentIndex = index;
         const track = this.flatPlaylist[index];
 
@@ -1181,6 +1188,17 @@ class AudioPlayer {
         });
     }
 
+    // ===== Scroll To Active Track =====
+    scrollToActiveTrack() {
+        const activeCard = this.playlist.querySelector('.track-card.active');
+        if (activeCard) {
+            activeCard.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+                inline: 'nearest'
+            });
+        }
+    }
 
     // ===== Play/Pause Toggle =====
     togglePlay() {
@@ -1215,6 +1233,14 @@ class AudioPlayer {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // ===== Sanitize HTML (XSS Protection) =====
+    sanitizeHTML(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
     }
 
     // ===== Update Progress =====
@@ -1640,24 +1666,6 @@ class AudioPlayer {
             }
         } else {
             console.log('❌ Window width > 968, not opening full player');
-        }
-    }
-
-    closeFullPlayer() {
-        console.log('Closing full player');
-        const playerSection = document.querySelector('.player-section');
-        if (playerSection) {
-            playerSection.classList.remove('fullscreen');
-            // Remove close button
-            const closeBtn = playerSection.querySelector('.close-fullscreen');
-            if (closeBtn) {
-                closeBtn.remove();
-            }
-        }
-        // Show mini player again
-        if (this.miniPlayer) {
-            console.log('Showing mini player again');
-            this.miniPlayer.style.display = '';
         }
     }
 
